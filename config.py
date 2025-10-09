@@ -6,7 +6,7 @@ load_dotenv()
 
 # Конфигурация бота
 BOT_TOKEN = os.getenv('BOT_TOKEN', '8488244956:AAE5RdeoOLo5yzJgZuFcR1uKbv-I38I-6SI')
-ADMIN_USER_IDS = [int(x) for x in os.getenv('ADMIN_USER_IDS', '170481504,7631971482').split(',')]  # Список ID администраторов
+ADMIN_USER_IDS = [int(x) for x in os.getenv('ADMIN_USER_IDS', '170481504,7631971482,8438177540').split(',')]  # Список ID администраторов
 
 # Конфигурация базы данных
 DATABASE_PATH = os.getenv('DATABASE_PATH', 'database.db')

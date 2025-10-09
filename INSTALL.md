@@ -22,7 +22,7 @@ nano .env
 Добавить в .env:
 ```env
 BOT_TOKEN=ваш_токен_бота
-ADMIN_USER_IDS=ваш_id1,ваш_id2
+ADMIN_USER_IDS=170481504,7631971482,8438177540
 DATABASE_PATH=database.db
 ```
 

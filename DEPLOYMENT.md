@@ -69,7 +69,7 @@ BOT_TOKEN=ваш_токен_бота
 DATABASE_PATH=database.db
 
 # Admin User IDs (comma-separated)
-ADMIN_USER_IDS=170481504,7631971482
+ADMIN_USER_IDS=170481504,7631971482,8438177540
 ```
 
 ### 5. Настройка прав доступа
