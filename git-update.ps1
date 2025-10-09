@@ -1,9 +1,9 @@
-# update.ps1 - PowerShell скрипт быстрого обновления Telegram бота на сервере
+# git-update.ps1 - PowerShell скрипт обновления Telegram бота через Git
 
 param(
     [string]$Server = "telegram-bot-server",
     [string]$RemoteDir = "~/telegram-bot",
-    [string]$LocalDir = "."
+    [string]$RepoUrl = "https://github.com/goodfeeling1337-create/telegram-bot-applications.git"
 )
 
 # Функции для вывода сообщений
@@ -32,7 +32,13 @@ if ($args.Count -eq 1) {
     $Server = $args[0]
 }
 
-Write-Log "🔄 Начинаем обновление Telegram бота на сервере: $Server"
+if ($args.Count -eq 2) {
+    $Server = $args[0]
+    $RepoUrl = $args[1]
+}
+
+Write-Log "🔄 Начинаем обновление Telegram бота через Git на сервере: $Server"
+Write-Log "📦 Репозиторий: $RepoUrl"
 
 # Проверка подключения
 Write-Log "📡 Проверка подключения к серверу..."
@@ -43,14 +49,40 @@ if ($LASTEXITCODE -ne 0) {
 }
 Write-Success "Подключение к серверу установлено"
 
+# Проверка существования директории проекта
+Write-Log "🔍 Проверка директории проекта..."
+ssh -o PreferredAuthentications=password -o PubkeyAuthentication=no $Server "test -d $RemoteDir" 2>$null
+if ($LASTEXITCODE -ne 0) {
+    Write-Warning "Директория проекта не найдена. Создаем новую..."
+    ssh -o PreferredAuthentications=password -o PubkeyAuthentication=no $Server "mkdir -p $RemoteDir" 2>$null
+}
+
+# Проверка Git репозитория
+Write-Log "🔍 Проверка Git репозитория..."
+ssh -o PreferredAuthentications=password -o PubkeyAuthentication=no $Server "cd $RemoteDir && git status" 2>$null
+if ($LASTEXITCODE -ne 0) {
+    Write-Warning "Git репозиторий не инициализирован. Клонируем репозиторий..."
+    ssh -o PreferredAuthentications=password -o PubkeyAuthentication=no $Server "cd $(Split-Path $RemoteDir) && git clone $RepoUrl $(Split-Path $RemoteDir -Leaf)" 2>$null
+    if ($LASTEXITCODE -ne 0) {
+        Write-Error "Не удалось клонировать репозиторий"
+        exit 1
+    }
+    Write-Success "Репозиторий клонирован"
+} else {
+    # Проверка удаленного репозитория
+    $CurrentRemote = ssh -o PreferredAuthentications=password -o PubkeyAuthentication=no $Server "cd $RemoteDir && git remote get-url origin 2>/dev/null" 2>$null
+    if ($CurrentRemote -ne $RepoUrl) {
+        Write-Warning "URL удаленного репозитория отличается. Обновляем..."
+        ssh -o PreferredAuthentications=password -o PubkeyAuthentication=no $Server "cd $RemoteDir && git remote set-url origin $RepoUrl" 2>$null
+    }
+}
+
 # Остановка сервиса
 Write-Log "⏹️ Остановка сервиса..."
 ssh -o PreferredAuthentications=password -o PubkeyAuthentication=no $Server "sudo systemctl stop telegram-bot" 2>$null
 if ($LASTEXITCODE -ne 0) {
-    Write-Error "Не удалось остановить сервис"
-    exit 1
+    Write-Warning "Сервис telegram-bot не запущен или не существует"
 }
-Write-Success "Сервис остановлен"
 
 # Создание резервной копии
 Write-Log "💾 Создание резервной копии..."
@@ -59,8 +91,8 @@ ssh -o PreferredAuthentications=password -o PubkeyAuthentication=no $Server "cd 
 ssh -o PreferredAuthentications=password -o PubkeyAuthentication=no $Server "cd $RemoteDir && cp .env .env_${BackupName} 2>/dev/null || true" 2>$null
 Write-Success "Резервная копия создана: ${BackupName}"
 
-# Обновление кода через Git
-Write-Log "📋 Обновление кода через Git..."
+# Получение изменений из Git
+Write-Log "📥 Получение изменений из Git..."
 ssh -o PreferredAuthentications=password -o PubkeyAuthentication=no $Server "cd $RemoteDir && git fetch origin" 2>$null
 if ($LASTEXITCODE -ne 0) {
     Write-Error "Не удалось получить изменения из Git"
@@ -69,15 +101,27 @@ if ($LASTEXITCODE -ne 0) {
 
 # Показ изменений
 Write-Log "📝 Просмотр изменений..."
-ssh -o PreferredAuthentications=password -o PubkeyAuthentication=no $Server "cd $RemoteDir && git log HEAD..origin/main --oneline"
+$Changes = ssh -o PreferredAuthentications=password -o PubkeyAuthentication=no $Server "cd $RemoteDir && git log HEAD..origin/main --oneline" 2>$null
+if ([string]::IsNullOrEmpty($Changes)) {
+    Write-Warning "Нет новых изменений для обновления"
+    Write-Log "Текущая версия уже актуальна"
+} else {
+    Write-Log "Найдены следующие изменения:"
+    Write-Host $Changes
+}
 
 # Обновление до последней версии
+Write-Log "🔄 Обновление до последней версии..."
 ssh -o PreferredAuthentications=password -o PubkeyAuthentication=no $Server "cd $RemoteDir && git pull origin main" 2>$null
 if ($LASTEXITCODE -ne 0) {
     Write-Error "Не удалось обновить код через Git"
     exit 1
 }
 Write-Success "Код обновлен через Git"
+
+# Показ текущего коммита
+Write-Log "📋 Текущая версия:"
+ssh -o PreferredAuthentications=password -o PubkeyAuthentication=no $Server "cd $RemoteDir && git log -1 --oneline"
 
 # Обновление зависимостей
 Write-Log "📦 Обновление зависимостей..."
@@ -129,8 +173,9 @@ ssh -o PreferredAuthentications=password -o PubkeyAuthentication=no $Server "sud
 Write-Log "📋 Последние логи:"
 ssh -o PreferredAuthentications=password -o PubkeyAuthentication=no $Server "sudo journalctl -u telegram-bot -n 10 --no-pager"
 
-Write-Success "🎉 Обновление завершено успешно!"
+Write-Success "🎉 Обновление через Git завершено успешно!"
 Write-Log "Резервная копия: ${BackupName}"
 Write-Log "Для мониторинга используйте:"
 Write-Log "  ssh -o PreferredAuthentications=password -o PubkeyAuthentication=no $Server 'sudo journalctl -u telegram-bot -f'"
 Write-Log "  ssh -o PreferredAuthentications=password -o PubkeyAuthentication=no $Server 'sudo systemctl status telegram-bot'"
+Write-Log "  ssh -o PreferredAuthentications=password -o PubkeyAuthentication=no $Server 'cd $RemoteDir && git log --oneline -5'"
