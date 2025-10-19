@@ -2,7 +2,6 @@ import asyncio
 import logging
 import signal
 import sys
-from concurrent.futures import ThreadPoolExecutor
 
 from bot import TelegramBot
 from reminder_system import start_reminder_system
@@ -18,30 +17,23 @@ class BotManager:
     def __init__(self):
         self.bot = TelegramBot()
         self.reminder_task = None
-        self.executor = ThreadPoolExecutor(max_workers=2)
     
-    def start(self):
+    async def start(self):
         """Запуск бота и системы напоминаний"""
         try:
             logger.info("Запуск Telegram бота...")
             
-            # Запускаем бота в отдельном потоке
-            self.executor.submit(self.bot.run)
+            # Запускаем систему напоминаний как задачу
+            self.reminder_task = asyncio.create_task(start_reminder_system())
             
-            # Запускаем систему напоминаний в отдельном потоке
-            self.executor.submit(self._run_reminder_system)
+            # Запускаем бота
+            await self.bot.run_async()
             
             logger.info("Бот успешно запущен!")
             
         except Exception as e:
             logger.error(f"Ошибка при запуске бота: {e}")
-    
-    def _run_reminder_system(self):
-        """Запуск системы напоминаний в отдельном потоке"""
-        try:
-            asyncio.run(start_reminder_system())
-        except Exception as e:
-            logger.error(f"Ошибка в системе напоминаний: {e}")
+            raise
     
     async def stop(self):
         """Остановка бота и системы напоминаний"""
@@ -62,9 +54,6 @@ class BotManager:
                 await self.bot.application.stop()
                 await self.bot.application.shutdown()
             
-            # Закрываем executor
-            self.executor.shutdown(wait=True)
-            
             logger.info("Бот остановлен")
             
         except Exception as e:
@@ -75,7 +64,7 @@ def signal_handler(signum, frame):
     logger.info(f"Получен сигнал {signum}, завершение работы...")
     sys.exit(0)
 
-def main():
+async def main():
     """Главная функция"""
     # Настраиваем обработчики сигналов
     signal.signal(signal.SIGINT, signal_handler)
@@ -85,32 +74,18 @@ def main():
     bot_manager = BotManager()
     
     try:
-        bot_manager.start()
+        await bot_manager.start()
         
-        # Ждем бесконечно, пока бот работает
-        while True:
-            import time
-            time.sleep(1)
-            
     except KeyboardInterrupt:
         logger.info("Получен сигнал прерывания")
     except Exception as e:
         logger.error(f"Критическая ошибка: {e}")
     finally:
-        # Останавливаем бота синхронно
-        try:
-            if bot_manager.bot.application:
-                bot_manager.bot.application.updater.stop()
-                bot_manager.bot.application.stop()
-        except Exception as e:
-            logger.error(f"Ошибка при остановке бота: {e}")
-        
-        # Закрываем executor
-        bot_manager.executor.shutdown(wait=True)
+        await bot_manager.stop()
 
 if __name__ == "__main__":
     try:
-        main()
+        asyncio.run(main())
     except KeyboardInterrupt:
         logger.info("Программа завершена пользователем")
     except Exception as e:

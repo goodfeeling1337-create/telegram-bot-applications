@@ -962,7 +962,7 @@ class TelegramBot:
         await self.admin_panel(update, context)
     
     def run(self):
-        """Запуск бота"""
+        """Запуск бота (синхронный)"""
         if not BOT_TOKEN:
             logger.error("BOT_TOKEN не установлен!")
             return
@@ -978,17 +978,33 @@ class TelegramBot:
         # Запускаем бота
         logger.info("Запуск бота...")
         try:
-            # Используем существующий event loop или создаем новый
-            import asyncio
-            try:
-                loop = asyncio.get_event_loop()
-            except RuntimeError:
-                loop = asyncio.new_event_loop()
-                asyncio.set_event_loop(loop)
-            
-            loop.run_until_complete(self.application.run_polling())
+            # Используем asyncio.run для правильного запуска
+            asyncio.run(self.application.run_polling())
         except Exception as e:
             logger.error(f"Ошибка при запуске бота: {e}")
+            raise
+    
+    async def run_async(self):
+        """Запуск бота (асинхронный)"""
+        if not BOT_TOKEN:
+            logger.error("BOT_TOKEN не установлен!")
+            return
+        
+        # Создаем приложение
+        self.application = Application.builder().token(BOT_TOKEN).build()
+        
+        # Добавляем обработчики
+        self.application.add_handler(CommandHandler("start", self.start))
+        self.application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, self.handle_message))
+        self.application.add_handler(CallbackQueryHandler(self.handle_callback))
+        
+        # Запускаем бота
+        logger.info("Запуск бота...")
+        try:
+            await self.application.run_polling()
+        except Exception as e:
+            logger.error(f"Ошибка при запуске бота: {e}")
+            raise
 
 if __name__ == "__main__":
     bot = TelegramBot()
