@@ -137,6 +137,9 @@ class TelegramBot:
             state_data = self.db.get_user_state(user.id)
             if state_data and state_data['state'] in ['application_fio', 'application_phone', 'application_info', 'delete_application']:
                 await self.handle_application_state(update, context)
+            elif state_data and state_data['state'].startswith('reply_application_'):
+                # Обработка ответа на заявку
+                await self.handle_application_state(update, context)
             else:
                 # Обработка случайных сообщений
                 await self.handle_random_message(update, context)
@@ -975,10 +978,14 @@ class TelegramBot:
         # Запускаем бота
         logger.info("Запуск бота...")
         try:
-            # Создаем новый event loop для этого потока
+            # Используем существующий event loop или создаем новый
             import asyncio
-            loop = asyncio.new_event_loop()
-            asyncio.set_event_loop(loop)
+            try:
+                loop = asyncio.get_event_loop()
+            except RuntimeError:
+                loop = asyncio.new_event_loop()
+                asyncio.set_event_loop(loop)
+            
             loop.run_until_complete(self.application.run_polling())
         except Exception as e:
             logger.error(f"Ошибка при запуске бота: {e}")

@@ -5,8 +5,15 @@ from dotenv import load_dotenv
 load_dotenv()
 
 # Конфигурация бота
-BOT_TOKEN = os.getenv('BOT_TOKEN', '8018040690:AAHSS7KDQjW9jbIvW5tQ1R9VGtQbPJmeiMM')
-ADMIN_USER_IDS = [int(x) for x in os.getenv('ADMIN_USER_IDS', '170481504,7631971482,8438177540').split(',')]  # Список ID администраторов
+BOT_TOKEN = os.getenv('BOT_TOKEN')
+ADMIN_USER_IDS = [int(x) for x in os.getenv('ADMIN_USER_IDS', '').split(',') if x.strip()]  # Список ID администраторов
+
+# Проверка обязательных переменных
+if not BOT_TOKEN:
+    raise ValueError("BOT_TOKEN не установлен в переменных окружения!")
+
+if not ADMIN_USER_IDS:
+    raise ValueError("ADMIN_USER_IDS не установлены в переменных окружения!")
 
 # Конфигурация базы данных
 DATABASE_PATH = os.getenv('DATABASE_PATH', 'database.db')
